@@ -18,6 +18,7 @@ func main() {
 			repository.NewSQLite,
 			service.NewService,
 			controller.NewController,
+			controller.NewTelegramBot,
 		),
 		fx.Invoke(controller.Start),
 	).Run()

@@ -3,26 +3,26 @@ package controller
 import (
 	"context"
 
-	"misaki/config"
-	"misaki/internal/service"
-
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
 
 type controller struct {
-	logger   *zap.Logger
-	telegram *config.Telegram
-	service  *service.Service
+	logger      *zap.Logger
+	telegramBot *telegramBot
 }
 
-func NewController(config *config.Config, logger *zap.Logger, s *service.Service) *controller {
+func NewController(logger *zap.Logger, telegramBot *telegramBot) *controller {
 	return &controller{
-		logger:   logger,
-		telegram: &config.Telegram,
-		service:  s,
+		logger:      logger,
+		telegramBot: telegramBot,
 	}
 }
+
+// TODO: Create user: only yourself can create your user with a single command or button
+// - For now ignore ping user
+// - Create a payment CRUD
 
 func Start(lc fx.Lifecycle, c *controller) {
 	log := c.logger.Sugar()
@@ -41,8 +41,33 @@ func Start(lc fx.Lifecycle, c *controller) {
 }
 
 func (c *controller) StartTelegramBot() error {
-	log := c.logger.Sugar()
-	log.Infow("I'm about to start telegram")
-	c.service.Something()
+	bot, err := tgbotapi.NewBotAPI(c.telegramBot.config.Token)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Info("Connected", zap.String("Bot Name", bot.Self.FirstName))
+
+	bot.Debug = c.telegramBot.config.Debug
+	c.telegramBot.bot = bot
+	c.telegramBot.router = NewCommandRouter()
+	c.telegramBot.router.Register("reply", c.telegramBot.Reply)
+	c.telegramBot.router.Register("user", c.telegramBot.GetUser)
+	c.telegramBot.router.Register("user_add", c.telegramBot.CreateUser)
+	c.telegramBot.router.Register("user_del", c.telegramBot.DeleteUser)
+
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+
+	updates := bot.GetUpdatesChan(u)
+
+	go func() {
+		for update := range updates {
+			if update.Message != nil {
+				c.telegramBot.Handle(update.Message)
+			}
+		}
+	}()
+
 	return nil
 }

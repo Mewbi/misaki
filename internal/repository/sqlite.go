@@ -1,11 +1,13 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 
 	"misaki/config"
+	"misaki/types"
 
 	"go.uber.org/zap"
 
@@ -65,7 +67,51 @@ func (s *SQLite) migrate(filepath string) error {
 	return nil
 }
 
-func (s *SQLite) Something() {
-	log := s.logger.Sugar()
-	log.Infow("Im on repository brruhhh")
+func (s *SQLite) CreateUser(ctx context.Context, user *types.User) error {
+	query := `INSERT INTO users (id, telegram_id, telegram_name, admin, created_at) VALUES ($1, $2, $3, $4, $5)`
+	_, err := s.conn.Exec(query,
+		user.UserID,
+		user.TelegramID,
+		user.TelegramName,
+		user.Admin,
+		user.CreatedAt,
+	)
+	return err
+}
+
+func (s *SQLite) GetUser(ctx context.Context, user *types.User) (*types.User, error) {
+	query := `SELECT id, telegram_id, telegram_name, admin, created_at FROM users WHERE id = $1 OR telegram_id = $2`
+	err := s.conn.QueryRow(query, user.UserID, user.TelegramID).Scan(
+		&user.UserID,
+		&user.TelegramID,
+		&user.TelegramName,
+		&user.Admin,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *SQLite) DeleteUser(ctx context.Context, user *types.User) error {
+	tx, err := s.conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+			return
+		}
+		err = tx.Commit()
+	}()
+
+	query := `DELETE FROM users WHERE id = $1 OR telegram_id = $2`
+	_, err = tx.Exec(query, user.UserID, user.TelegramID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
