@@ -21,7 +21,6 @@ func NewController(logger *zap.Logger, telegramBot *telegramBot) *controller {
 }
 
 // TODO: Create user: only yourself can create your user with a single command or button
-// - For now ignore ping user
 // - Create a payment CRUD
 
 func Start(lc fx.Lifecycle, c *controller) {
@@ -54,7 +53,7 @@ func (c *controller) StartTelegramBot() error {
 	c.telegramBot.router.Register("reply", c.telegramBot.Reply)
 	c.telegramBot.router.Register("user", c.telegramBot.GetUser)
 	c.telegramBot.router.Register("user_add", c.telegramBot.CreateUser)
-	c.telegramBot.router.Register("user_del", c.telegramBot.DeleteUser)
+	c.telegramBot.router.Register("user_del", c.telegramBot.DeleteUser, c.telegramBot.RequireAdmin)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60

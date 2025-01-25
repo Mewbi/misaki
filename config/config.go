@@ -13,8 +13,9 @@ type Config struct {
 }
 
 type Telegram struct {
-	Token string `yaml:"token"`
-	Debug bool   `yaml:"debug"`
+	Token     string `yaml:"token"`
+	Debug     bool   `yaml:"debug"`
+	AdminUser int64  `yaml:"admin_user"`
 }
 
 type Database struct {

@@ -115,3 +115,27 @@ func (s *SQLite) DeleteUser(ctx context.Context, user *types.User) error {
 
 	return nil
 }
+
+func (s *SQLite) GetBilling(ctx context.Context, billing *types.Billing) (*types.Billing, error) {
+	return nil, nil
+}
+
+func (s *SQLite) ListBillings(ctx context.Context) ([]*types.Billing, error) {
+	return nil, nil
+}
+
+func (s *SQLite) CreateBilling(ctx context.Context, billing *types.Billing) error {
+	return nil
+}
+
+func (s *SQLite) DeleteBilling(ctx context.Context, billing *types.Billing) error {
+	return nil
+}
+
+func (s *SQLite) AssociateBilling(ctx context.Context, payment *types.Payment) error {
+	return nil
+}
+
+func (s *SQLite) ChangePaymentBilling(ctx context.Context, payment *types.Payment) error {
+	return nil
+}

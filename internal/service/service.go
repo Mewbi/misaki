@@ -42,7 +42,6 @@ func (s *Service) CreateUser(ctx context.Context, user *types.User) (*types.User
 
 	user.UserID = userID
 	user.CreatedAt = time.Now()
-	user.Admin = false
 
 	if err := s.repository.CreateUser(ctx, user); err != nil {
 		return nil, err

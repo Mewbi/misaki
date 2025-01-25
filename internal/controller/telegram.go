@@ -32,12 +32,47 @@ func NewTelegramBot(config *config.Config, logger *zap.Logger, s *service.Servic
 }
 
 func (b *telegramBot) Handle(message *tgbotapi.Message) {
-	if handler, ok := b.router.handlers[message.Command()]; ok {
+	if endpoint, ok := b.router.handlers[message.Command()]; ok {
 		b.logger.Info("Running command", zap.String("command", message.Command()))
-		handler(context.Background(), message)
+		ctx := context.Background()
+
+		for _, handler := range endpoint.Middlewares {
+			if pass := handler(ctx, message); !pass {
+				return
+			}
+		}
+
+		endpoint.Handler(ctx, message)
 		return
 	}
 	b.logger.Info("Unknown command", zap.String("command", message.Command()))
+}
+
+func (b *telegramBot) RequireAdmin(ctx context.Context, m *tgbotapi.Message) bool {
+	admin, err := b.service.IsUserAdmin(ctx, &types.User{TelegramID: m.From.ID})
+	if err != nil {
+		b.logger.Error("error validating user permission", zap.Int64("TelegramID", m.From.ID), zap.Error(err))
+
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Error validating user permission"))
+		msg.ReplyToMessageID = m.MessageID
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return false
+	}
+
+	if !admin {
+
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ User don't have required permission"))
+		msg.ReplyToMessageID = m.MessageID
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+
+		return false
+	}
+
+	return true
 }
 
 func (b *telegramBot) Reply(ctx context.Context, m *tgbotapi.Message) {
@@ -56,12 +91,15 @@ func (b *telegramBot) CreateUser(ctx context.Context, m *tgbotapi.Message) {
 		TelegramName: name,
 	}
 
+	// Set user admin
+	newUser.Admin = m.From.ID == b.config.AdminUser
+
 	user, err := b.service.CreateUser(ctx, &newUser)
 	if err != nil {
 
 		b.logger.Error("error creating user", zap.Int64("TelegramID", newUser.TelegramID), zap.String("Name", newUser.TelegramName), zap.Error(err))
 
-		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("Error creating user %s (%d)", newUser.TelegramName, newUser.TelegramID))
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Error creating user %s (%d)", newUser.TelegramName, newUser.TelegramID))
 		msg.ReplyToMessageID = m.MessageID
 		if _, err := b.bot.Send(msg); err != nil {
 			b.logger.Error("error while sending message", zap.Error(err))
@@ -74,7 +112,7 @@ func (b *telegramBot) CreateUser(ctx context.Context, m *tgbotapi.Message) {
 			"👤 *User Details:*\n"+
 			"🆔 *ID:* `%s`\n"+
 			"🌎 *Telegram ID:* `%d`\n"+
-			"💬 *Telegram Name:* %s\n"+
+			"💬 *Telegram Name:* `%s`\n"+
 			"👮 *Admin:* %t\n"+
 			"📅 *Created At:* %s\n",
 		user.UserID.String(),
@@ -86,7 +124,7 @@ func (b *telegramBot) CreateUser(ctx context.Context, m *tgbotapi.Message) {
 
 	// Send the response message
 	msg := tgbotapi.NewMessage(m.Chat.ID, messageText)
-	msg.ParseMode = "Markdown"
+	msg.ParseMode = tgbotapi.ModeMarkdown
 
 	if _, err := b.bot.Send(msg); err != nil {
 		b.logger.Error("error while sending message", zap.Error(err))
@@ -116,7 +154,7 @@ func (b *telegramBot) GetUser(ctx context.Context, m *tgbotapi.Message) {
 
 	if errTg != nil && errUuid != nil {
 
-		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("Error to get user, invalid id informed: %s", id))
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Error to get user, invalid id informed: %s", id))
 		msg.ReplyToMessageID = m.MessageID
 		if _, err := b.bot.Send(msg); err != nil {
 			b.logger.Error("error while sending message", zap.Error(err))
@@ -128,9 +166,9 @@ func (b *telegramBot) GetUser(ctx context.Context, m *tgbotapi.Message) {
 	if err != nil {
 		b.logger.Error("failed to get user", zap.String("ID", id), zap.Error(err))
 
-		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("Internal error while getting user: %s", id))
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Internal error while getting user: %s", id))
 		if err == sql.ErrNoRows {
-			msg = tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("User %s not found", id))
+			msg = tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ User %s not found", id))
 		}
 
 		if _, err := b.bot.Send(msg); err != nil {
@@ -143,7 +181,7 @@ func (b *telegramBot) GetUser(ctx context.Context, m *tgbotapi.Message) {
 		"👤 *User Details:*\n"+
 			"🆔 *ID:* `%s`\n"+
 			"🌎 *Telegram ID:* `%d`\n"+
-			"💬 *Telegram Name:* %s\n"+
+			"💬 *Telegram Name:* `%s`\n"+
 			"👮 *Admin:* %t\n"+
 			"📅 *Created At:* %s\n",
 		userFound.UserID.String(),
@@ -154,7 +192,7 @@ func (b *telegramBot) GetUser(ctx context.Context, m *tgbotapi.Message) {
 	)
 
 	msg := tgbotapi.NewMessage(m.Chat.ID, messageText)
-	msg.ParseMode = "Markdown"
+	msg.ParseMode = tgbotapi.ModeMarkdown
 	if _, err := b.bot.Send(msg); err != nil {
 		b.logger.Error("error while sending message", zap.Error(err))
 	}
@@ -177,29 +215,7 @@ func (b *telegramBot) DeleteUser(ctx context.Context, m *tgbotapi.Message) {
 
 	if errTg != nil && errUuid != nil {
 
-		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("Error to get user, invalid id informed: %s", id))
-		msg.ReplyToMessageID = m.MessageID
-		if _, err := b.bot.Send(msg); err != nil {
-			b.logger.Error("error while sending message", zap.Error(err))
-		}
-		return
-	}
-
-	admin, err := b.service.IsUserAdmin(ctx, &types.User{TelegramID: m.From.ID})
-	if err != nil {
-		b.logger.Error("error validating user permission", zap.Int64("TelegramID", m.From.ID), zap.Error(err))
-
-		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("Error validating user permission"))
-		msg.ReplyToMessageID = m.MessageID
-		if _, err := b.bot.Send(msg); err != nil {
-			b.logger.Error("error while sending message", zap.Error(err))
-		}
-		return
-	}
-
-	if !admin {
-
-		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("User don't have required permission"))
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Error to get user, invalid id informed: %s", id))
 		msg.ReplyToMessageID = m.MessageID
 		if _, err := b.bot.Send(msg); err != nil {
 			b.logger.Error("error while sending message", zap.Error(err))
@@ -211,7 +227,7 @@ func (b *telegramBot) DeleteUser(ctx context.Context, m *tgbotapi.Message) {
 
 		b.logger.Error("error deleting user", zap.Int64("TelegramID", user.TelegramID), zap.String("UserID", user.UserID.String()), zap.Error(err))
 
-		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("Error deleting user %s", id))
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Error deleting user %s", id))
 		msg.ReplyToMessageID = m.MessageID
 		if _, err := b.bot.Send(msg); err != nil {
 			b.logger.Error("error while sending message", zap.Error(err))
@@ -221,7 +237,24 @@ func (b *telegramBot) DeleteUser(ctx context.Context, m *tgbotapi.Message) {
 
 	msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("👤 *User Deleted:* %s", id))
 	msg.ReplyToMessageID = m.MessageID
+	msg.ParseMode = tgbotapi.ModeMarkdown
 	if _, err := b.bot.Send(msg); err != nil {
 		b.logger.Error("error while sending message", zap.Error(err))
 	}
 }
+
+func (b *telegramBot) GetBilling(ctx context.Context, m *tgbotapi.Message) {}
+
+func (b *telegramBot) ListBillings(ctx context.Context, m *tgbotapi.Message) {}
+
+func (b *telegramBot) CreateBilling(ctx context.Context, m *tgbotapi.Message) {}
+
+func (b *telegramBot) DeleteBilling(ctx context.Context, m *tgbotapi.Message) {}
+
+func (b *telegramBot) AssociateBilling(ctx context.Context, m *tgbotapi.Message) {}
+
+func (b *telegramBot) DisassociateBilling(ctx context.Context, m *tgbotapi.Message) {}
+
+func (b *telegramBot) PayBilling(ctx context.Context, m *tgbotapi.Message) {}
+
+func (b *telegramBot) UnpayBilling(ctx context.Context, m *tgbotapi.Message) {}

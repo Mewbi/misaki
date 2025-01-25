@@ -6,3 +6,20 @@ CREATE TABLE IF NOT EXISTS users (
     admin         BOOLEAN,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Table for billings
+CREATE TABLE IF NOT EXISTS billings (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE,
+    value       FLOAT,
+    createad_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- TABLE for associate billing with users
+CREATE  TABLE IF NOT EXISTS billings_users (
+  id_billing TEXT NOT NULL,
+  id_user    TEXT NOT NULL,
+  paid       BOOLEAN,
+  paid_at    DATETIME,
+  PRIMARY KEY (id_billing, id_user)
+);
