@@ -22,6 +22,7 @@ type repositoryBilling interface {
 	ListBillings(ctx context.Context) ([]*types.Billing, error)
 	CreateBilling(ctx context.Context, billing *types.Billing) error
 	DeleteBilling(ctx context.Context, billing *types.Billing) error
-	AssociateBilling(ctx context.Context, payment *types.Payment) error
-	ChangePaymentBilling(ctx context.Context, payment *types.Payment) error
+	AssociatePayment(ctx context.Context, payment *types.Payment) error
+	DisassociatePayment(ctx context.Context, payment *types.Payment) error
+	ChangePaymentStatus(ctx context.Context, payment *types.Payment) error
 }

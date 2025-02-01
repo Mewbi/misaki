@@ -32,4 +32,5 @@ type Payment struct {
 	UserID    uuid.UUID
 	Paid      bool
 	PaidAt    time.Time
+	UserInfo  User
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"misaki/config"
 	"misaki/internal/service"
@@ -81,7 +82,6 @@ func (b *telegramBot) Reply(ctx context.Context, m *tgbotapi.Message) {
 	if _, err := b.bot.Send(msg); err != nil {
 		b.logger.Error("error while sending message", zap.Error(err))
 	}
-	return
 }
 
 func (b *telegramBot) CreateUser(ctx context.Context, m *tgbotapi.Message) {
@@ -243,17 +243,213 @@ func (b *telegramBot) DeleteUser(ctx context.Context, m *tgbotapi.Message) {
 	}
 }
 
-func (b *telegramBot) GetBilling(ctx context.Context, m *tgbotapi.Message) {}
+func (b *telegramBot) GetBilling(ctx context.Context, m *tgbotapi.Message) {
+	billing := &types.Billing{}
+	id := m.CommandArguments()
 
-func (b *telegramBot) ListBillings(ctx context.Context, m *tgbotapi.Message) {}
+	if id == "" {
+		msg := tgbotapi.NewMessage(m.Chat.ID, "⚠️ Error to get billing, id cannot be empty")
+		msg.ReplyToMessageID = m.MessageID
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return
+	}
 
-func (b *telegramBot) CreateBilling(ctx context.Context, m *tgbotapi.Message) {}
+	billingID, err := uuid.Parse(id)
+	if err == nil {
+		billing.ID = billingID
+	} else {
+		billing.Name = id
+	}
 
-func (b *telegramBot) DeleteBilling(ctx context.Context, m *tgbotapi.Message) {}
+	billing, err = b.service.GetBilling(ctx, billing)
+	if err != nil {
+		b.logger.Error("failed to get billing", zap.String("ID", id), zap.Error(err))
 
-func (b *telegramBot) AssociateBilling(ctx context.Context, m *tgbotapi.Message) {}
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Internal error while getting billing: %s", id))
+		if err == sql.ErrNoRows {
+			msg = tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Billing %s not found", id))
+		}
 
-func (b *telegramBot) DisassociateBilling(ctx context.Context, m *tgbotapi.Message) {}
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return
+	}
+
+	messageText := fmt.Sprintf(
+		"🤑 *Billing Details*\n\n"+
+			"🆔 *ID:* `%s`\n"+
+			"💬 *Name:* `%s`\n"+
+			"👤 *Users Associated:* %d\n"+
+			"💸 *Value:* %.2f\n"+
+			"💸 *Value per User:* %.2f\n"+
+			"📅 *Created At:* %s\n",
+		billing.ID.String(),
+		billing.Name,
+		len(billing.Payments),
+		billing.Value,
+		billing.ValuePerUser,
+		billing.CreatedAt.Format("2006-01-02 15:04:05"),
+	)
+
+	msg := tgbotapi.NewMessage(m.Chat.ID, messageText)
+	msg.ParseMode = tgbotapi.ModeMarkdown
+	if _, err := b.bot.Send(msg); err != nil {
+		b.logger.Error("error while sending message", zap.Error(err))
+	}
+	return
+}
+
+func (b *telegramBot) ListBillings(ctx context.Context, m *tgbotapi.Message) {
+	billings, err := b.service.ListBillings(ctx)
+	if err != nil {
+		b.logger.Error("failed to list billings", zap.Error(err))
+
+		msg := tgbotapi.NewMessage(m.Chat.ID, "⚠️ Internal error while getting billings")
+
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return
+	}
+
+	messageText := fmt.Sprintf(
+		"🤑 *Billings Found:* %d\n\n",
+		len(billings),
+	)
+
+	for _, billing := range billings {
+		text := fmt.Sprintf("🆔 `%s` \n💬 `%s` \n💸 %.2f \n\n",
+			billing.ID,
+			billing.Name,
+			billing.Value,
+		)
+
+		messageText += text
+	}
+
+	msg := tgbotapi.NewMessage(m.Chat.ID, messageText)
+	msg.ParseMode = tgbotapi.ModeMarkdown
+	if _, err := b.bot.Send(msg); err != nil {
+		b.logger.Error("error while sending message", zap.Error(err))
+	}
+	return
+}
+
+func (b *telegramBot) CreateBilling(ctx context.Context, m *tgbotapi.Message) {
+	data := strings.Split(m.CommandArguments(), " ")
+
+	if len(data) != 2 {
+		b.logger.Error("invalid billing arguments", zap.Int("number arguments", len(data)))
+
+		msg := tgbotapi.NewMessage(m.Chat.ID, "⚠️ Invalid number of arguments received, expected: <name> <value>")
+		msg.ReplyToMessageID = m.MessageID
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return
+	}
+
+	name := data[0]
+	value, err := strconv.ParseFloat(data[1], 64)
+	if err != nil {
+		b.logger.Error("invalid billing value", zap.String("value", data[1]), zap.Error(err))
+
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Invalid value for billing, expected float, received: %s", data[1]))
+		msg.ReplyToMessageID = m.MessageID
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return
+	}
+
+	newBilling := &types.Billing{
+		Name:  name,
+		Value: value,
+	}
+
+	billing, err := b.service.CreateBilling(ctx, newBilling)
+	if err != nil {
+
+		b.logger.Error("error creating billing", zap.String("name", newBilling.Name), zap.Float64("value", newBilling.Value), zap.Error(err))
+
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Error creating billing %s (%f)", newBilling.Name, newBilling.Value))
+		msg.ReplyToMessageID = m.MessageID
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return
+	}
+
+	messageText := fmt.Sprintf(
+		"🤑 *Billing Created Successfully!*\n\n"+
+			"👤 *Billing Details:*\n"+
+			"🆔 *ID:* `%s`\n"+
+			"💬 *Name:* `%s`\n"+
+			"💸 *Value:* %.2f\n"+
+			"📅 *Created At:* %s\n",
+		billing.ID.String(),
+		billing.Name,
+		billing.Value,
+		billing.CreatedAt.Format("2006-01-02 15:04:05"),
+	)
+
+	// Send the response message
+	msg := tgbotapi.NewMessage(m.Chat.ID, messageText)
+	msg.ParseMode = tgbotapi.ModeMarkdown
+
+	if _, err := b.bot.Send(msg); err != nil {
+		b.logger.Error("error while sending message", zap.Error(err))
+	}
+}
+
+func (b *telegramBot) DeleteBilling(ctx context.Context, m *tgbotapi.Message) {
+	billing := &types.Billing{}
+	id := m.CommandArguments()
+
+	if id == "" {
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Error to get billing, id cannot be empty", id))
+		msg.ReplyToMessageID = m.MessageID
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return
+	}
+
+	billingID, err := uuid.Parse(id)
+	if err == nil {
+		billing.ID = billingID
+	} else {
+		billing.Name = id
+	}
+
+	err = b.service.DeleteBilling(ctx, billing)
+	if err != nil {
+		b.logger.Error("failed to delete billing", zap.String("ID", id), zap.Error(err))
+
+		msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("⚠️ Internal error while deleting billing: %s", id))
+
+		if _, err := b.bot.Send(msg); err != nil {
+			b.logger.Error("error while sending message", zap.Error(err))
+		}
+		return
+	}
+
+	msg := tgbotapi.NewMessage(m.Chat.ID, fmt.Sprintf("🤑 *Billing Deleted:* %s", id))
+	msg.ReplyToMessageID = m.MessageID
+	msg.ParseMode = tgbotapi.ModeMarkdown
+	if _, err := b.bot.Send(msg); err != nil {
+		b.logger.Error("error while sending message", zap.Error(err))
+	}
+
+	return
+}
+
+func (b *telegramBot) AssociatePayment(ctx context.Context, m *tgbotapi.Message) {}
+
+func (b *telegramBot) DisassociatePayment(ctx context.Context, m *tgbotapi.Message) {}
 
 func (b *telegramBot) PayBilling(ctx context.Context, m *tgbotapi.Message) {}
 
