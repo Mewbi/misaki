@@ -51,6 +51,7 @@ func (c *controller) StartTelegramBot() error {
 	c.telegramBot.bot = bot
 	c.telegramBot.router = NewCommandRouter()
 	c.telegramBot.router.Register("reply", c.telegramBot.Reply)
+	c.telegramBot.router.Register("help", c.telegramBot.Help)
 
 	// User handlers
 	c.telegramBot.router.Register("user", c.telegramBot.GetUser)
@@ -66,8 +67,10 @@ func (c *controller) StartTelegramBot() error {
 	// Payment handlers
 	c.telegramBot.router.Register("payment_associate", c.telegramBot.AssociatePayment, c.telegramBot.RequireAdmin)
 	c.telegramBot.router.Register("payment_disassociate", c.telegramBot.DisassociatePayment, c.telegramBot.RequireAdmin)
-	c.telegramBot.router.Register("billing_pay", c.telegramBot.CreateBilling)
-	c.telegramBot.router.Register("billing_unpay", c.telegramBot.DeleteBilling)
+	c.telegramBot.router.Register("billing_pay", c.telegramBot.PayBilling)
+	c.telegramBot.router.Register("billing_unpay", c.telegramBot.UnpayBilling)
+	c.telegramBot.router.Register("billing_pay_admin", c.telegramBot.PayBillingAdmin, c.telegramBot.RequireAdmin)
+	c.telegramBot.router.Register("billing_unpay_admin", c.telegramBot.UnpayBillingAdmin, c.telegramBot.RequireAdmin)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60

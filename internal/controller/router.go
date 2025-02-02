@@ -20,6 +20,7 @@ type Endpoint struct {
 // CommandRouter maps commands to handlers.
 type CommandRouter struct {
 	handlers map[string]Endpoint
+	commands []string
 }
 
 // NewCommandRouter creates a new CommandRouter.
@@ -33,4 +34,6 @@ func (r *CommandRouter) Register(command string, handler CommandHandler, middlew
 		Handler:     handler,
 		Middlewares: middlewares,
 	}
+
+	r.commands = append(r.commands, "/"+command)
 }

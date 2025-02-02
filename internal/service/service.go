@@ -132,7 +132,7 @@ func (s *Service) DeleteBilling(ctx context.Context, billing *types.Billing) err
 	return s.repository.DeleteBilling(ctx, billing)
 }
 
-func (s *Service) ChangeBillingAssociation(ctx context.Context, payment *types.Payment, assoaciate bool) error {
+func (s *Service) ChangePaymentAssociation(ctx context.Context, payment *types.Payment, assoaciate bool) error {
 	if assoaciate {
 		payment.Paid = false
 		return s.repository.AssociatePayment(ctx, payment)
@@ -150,4 +150,17 @@ func (s *Service) ChangePaymentStatus(ctx context.Context, payment *types.Paymen
 	}
 
 	return s.repository.ChangePaymentStatus(ctx, payment)
+}
+
+func (s *Service) PaymentAssociationExist(ctx context.Context, payment *types.Payment) (bool, error) {
+	_, err := s.repository.GetPaymentAssociation(ctx, payment)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

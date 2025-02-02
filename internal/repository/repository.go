@@ -25,4 +25,5 @@ type repositoryBilling interface {
 	AssociatePayment(ctx context.Context, payment *types.Payment) error
 	DisassociatePayment(ctx context.Context, payment *types.Payment) error
 	ChangePaymentStatus(ctx context.Context, payment *types.Payment) error
+	GetPaymentAssociation(ctx context.Context, payment *types.Payment) (*types.Payment, error)
 }
