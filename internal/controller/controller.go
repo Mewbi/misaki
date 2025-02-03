@@ -81,6 +81,7 @@ func (c *controller) StartTelegramBot() error {
 		for update := range updates {
 			if update.Message != nil {
 				c.telegramBot.Handle(update.Message)
+				c.logger.Sugar().Infof("%v", update.Message.Entities)
 			}
 		}
 	}()

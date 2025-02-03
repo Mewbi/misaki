@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  misaki_bot:
+    build: .
+    container_name: misaki_bot
+    restart: always
+    volumes:
+      - misaki_database:/app/database
+
+volumes:
+  misaki_database:

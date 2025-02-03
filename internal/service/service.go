@@ -153,7 +153,8 @@ func (s *Service) ChangePaymentStatus(ctx context.Context, payment *types.Paymen
 }
 
 func (s *Service) PaymentAssociationExist(ctx context.Context, payment *types.Payment) (bool, error) {
-	_, err := s.repository.GetPaymentAssociation(ctx, payment)
+	searchPayment := *payment
+	_, err := s.repository.GetPaymentAssociation(ctx, &searchPayment)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}

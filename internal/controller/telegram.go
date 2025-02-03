@@ -271,9 +271,9 @@ func (b *telegramBot) GetBilling(ctx context.Context, m *tgbotapi.Message) {
 			"🆔 *ID:* `%s`\n"+
 			"💬 *Name:* `%s`\n"+
 			"👤 *Users Associated:* %d\n"+
-			"💸 *Value:* %.2f\n"+
+			"💰 *Value:* %.2f\n"+
 			"💸 *Value per User:* %.2f\n"+
-			"📅 *Created At:* %s\n",
+			"📅 *Created At:* %s\n\n",
 		billing.ID.String(),
 		billing.Name,
 		len(billing.Payments),
@@ -281,6 +281,19 @@ func (b *telegramBot) GetBilling(ctx context.Context, m *tgbotapi.Message) {
 		billing.ValuePerUser,
 		billing.CreatedAt.Format("2006-01-02 15:04:05"),
 	)
+
+	for _, payment := range billing.Payments {
+		paymentText := fmt.Sprintf(
+			"👤 *User:* `%s`\n"+
+				"💵 *Paid:* %t\n"+
+				"📅 *Paid At:* %s\n\n",
+			b.getUserName(&payment.UserInfo),
+			payment.Paid,
+			payment.PaidAt.Format("2006-01-02 15:04:05"),
+		)
+
+		messageText += paymentText
+	}
 
 	msg := tgbotapi.NewMessage(m.Chat.ID, messageText)
 	msg.ParseMode = tgbotapi.ModeMarkdown
@@ -373,7 +386,7 @@ func (b *telegramBot) CreateBilling(ctx context.Context, m *tgbotapi.Message) {
 
 	messageText := fmt.Sprintf(
 		"🤑 *Billing Created Successfully!*\n\n"+
-			"👤 *Billing Details:*\n"+
+			"💰 *Billing Details:*\n"+
 			"🆔 *ID:* `%s`\n"+
 			"💬 *Name:* `%s`\n"+
 			"💸 *Value:* %.2f\n"+
@@ -657,6 +670,7 @@ func (b *telegramBot) UnpayBillingAdmin(ctx context.Context, m *tgbotapi.Message
 	b.changePaymentStatus(ctx, m, billing, user, false)
 }
 
+// TODO: If status is true, validate if payment exists before change
 func (b *telegramBot) changePaymentStatus(ctx context.Context, m *tgbotapi.Message, billing *types.Billing, user *types.User, status bool) {
 	// Search billing
 	billing, err := b.service.GetBilling(ctx, billing)
@@ -731,17 +745,17 @@ func (b *telegramBot) changePaymentStatus(ctx context.Context, m *tgbotapi.Messa
 		return
 	}
 
-	paidText := "💵 *Status*: Unpaid"
+	paidText := "💵 *Status:* Unpaid"
 	if status {
 		paidText = fmt.Sprintf(
-			"💵 *Status*: Paid\n"+
-				"📅 *Paid At*: %s",
+			"💵 *Status:* Paid\n"+
+				"📅 *Paid At:* %s",
 			payment.PaidAt.Format("2006-01-02 15:04:05"),
 		)
 	}
 
 	messageText := fmt.Sprintf(
-		"🔄 *Billing Payment\n\n"+
+		"🔄 *Billing Payment*\n\n"+
 			"👤 *User ID:* `%s`\n"+
 			"💸 *Billing ID:* `%s`\n"+
 			"%s\n",

@@ -47,3 +47,15 @@ func (b *telegramBot) parseBillingIdentifier(id string) (*types.Billing, error) 
 
 	return billing, nil
 }
+
+func (b *telegramBot) getUserName(user *types.User) string {
+	if user.TelegramName != "" {
+		return user.TelegramName
+	}
+
+	if user.TelegramID != types.TELEGRAM_ID_EMPTY {
+		return fmt.Sprintf("%d", user.TelegramID)
+	}
+
+	return user.UserID.String()
+}

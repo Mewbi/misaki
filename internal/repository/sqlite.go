@@ -130,7 +130,11 @@ func (s *SQLite) GetBilling(ctx context.Context, billing *types.Billing) (*types
 
 	// Query associated users
 	billing.Payments = []types.Payment{}
-	query = `SELECT id_billing, id_user, paid, paid_at FROM billing_user WHERE id_billing = $1`
+	query = `SELECT bu.id_billing, bu.id_user, bu.paid, bu.paid_at, telegram_id, telegram_name
+					FROM billing_user AS bu 
+					INNER JOIN users AS u 
+					ON bu.id_user = u.id 
+					WHERE id_billing = $1`
 	rows, err := s.conn.Query(query, billing.ID)
 	if err != nil {
 		return nil, err
@@ -139,15 +143,21 @@ func (s *SQLite) GetBilling(ctx context.Context, billing *types.Billing) (*types
 
 	for rows.Next() {
 		payment := types.Payment{}
+		user := types.User{}
 		err := rows.Scan(
 			&payment.BillingID,
 			&payment.UserID,
 			&payment.Paid,
 			&payment.PaidAt,
+			&user.TelegramID,
+			&user.TelegramName,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		user.UserID = payment.UserID
+		payment.UserInfo = user
 
 		billing.Payments = append(billing.Payments, payment)
 	}
@@ -264,7 +274,7 @@ func (s *SQLite) ChangePaymentStatus(ctx context.Context, payment *types.Payment
 }
 
 func (s *SQLite) GetPaymentAssociation(ctx context.Context, payment *types.Payment) (*types.Payment, error) {
-	query := `SELECT id_user, paid, paid_at FROM billing_user WHERE id_billing = $1`
+	query := `SELECT id_billing, id_user, paid, paid_at FROM billing_user WHERE id_billing = $1`
 	err := s.conn.QueryRow(query, payment.BillingID, payment.UserID).Scan(
 		&payment.BillingID,
 		&payment.UserID,
