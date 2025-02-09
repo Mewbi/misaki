@@ -22,6 +22,15 @@ FROM alpine:latest
 # Set the working directory in the container
 WORKDIR /app
 
+# Install dependencies
+RUN apk add python3 curl ffmpeg jq --no-cache
+
+ARG LATEST_VERSION
+RUN : "${LATEST_VERSION:=$(curl -s https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest | jq -r .tag_name)}"
+
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/download/${LATEST_VERSION}/yt-dlp -o /usr/local/bin/yt-dlp && \
+  chmod a+x /usr/local/bin/yt-dlp
+
 # Copy the pre-built binary from the previous stage
 COPY --from=builder /app/main .
 COPY --from=builder /app/config/config.yaml ./config/config.yaml

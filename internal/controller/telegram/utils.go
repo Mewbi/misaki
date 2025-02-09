@@ -1,4 +1,4 @@
-package controller
+package telegram
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (b *telegramBot) parseUserIdentifier(id string) (*types.User, error) {
+func (b *TelegramBot) parseUserIdentifier(id string) (*types.User, error) {
 	user := &types.User{}
 
 	telegramID, errTg := strconv.ParseInt(id, 10, 64)
@@ -30,7 +30,7 @@ func (b *telegramBot) parseUserIdentifier(id string) (*types.User, error) {
 	return user, nil
 }
 
-func (b *telegramBot) parseBillingIdentifier(id string) (*types.Billing, error) {
+func (b *TelegramBot) parseBillingIdentifier(id string) (*types.Billing, error) {
 	billing := &types.Billing{}
 
 	id = strings.TrimSpace(id)
@@ -48,7 +48,7 @@ func (b *telegramBot) parseBillingIdentifier(id string) (*types.Billing, error) 
 	return billing, nil
 }
 
-func (b *telegramBot) getUserName(user *types.User) string {
+func (b *TelegramBot) getUserName(user *types.User) string {
 	if user.TelegramName != "" {
 		return user.TelegramName
 	}

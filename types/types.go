@@ -1,9 +1,12 @@
 package types
 
 import (
+	"bytes"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wader/goutubedl"
 )
 
 const (
@@ -33,4 +36,13 @@ type Payment struct {
 	Paid      bool
 	PaidAt    time.Time
 	UserInfo  User
+}
+
+type Midia struct {
+	Quality   string
+	OnlyAudio bool
+	Url       *url.URL
+	Name      string
+	Content   *bytes.Buffer
+	Data      goutubedl.Result
 }

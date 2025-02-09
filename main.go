@@ -3,6 +3,7 @@ package main
 import (
 	"misaki/config"
 	"misaki/internal/controller"
+	"misaki/internal/controller/telegram"
 	"misaki/internal/repository"
 	"misaki/internal/service"
 	"misaki/logger"
@@ -18,7 +19,7 @@ func main() {
 			repository.NewSQLite,
 			service.NewService,
 			controller.NewController,
-			controller.NewTelegramBot,
+			telegram.NewTelegramBot,
 		),
 		fx.Invoke(controller.Start),
 	).Run()
